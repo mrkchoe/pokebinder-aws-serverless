@@ -6,37 +6,37 @@ A **multi-user digital Pokémon TCG binder** built on a **FREE-TIER-SAFE** serve
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
-│                           PokéBinder (AWS Edition)                        │
+│                           PokéBinder (AWS Edition)                      │
 ├─────────────────────────────────────────────────────────────────────────┤
-│                                                                          │
+│                                                                         │
 │   ┌──────────────┐     Sign in / Sign up      ┌─────────────────────┐   │
-│   │   Next.js    │ ──────────────────────────►│  AWS Cognito         │   │
-│   │   Frontend   │     JWT in httpOnly cookie  │  (User Pool)         │   │
-│   │   (App Router)│◄──────────────────────────│                     │   │
+│   │   Next.js    │ ──────────────────────────►│  AWS Cognito        │   │
+│   │   Frontend   │     JWT in httpOnly cookie │  (User Pool)        │   │
+│   │  (App Router)│◄───────────────────────────│                     │   │
 │   └──────┬───────┘                            └─────────────────────┘   │
-│          │                                                                 │
-│          │  API calls (via Next.js proxy → add Bearer token from cookie)   │
-│          ▼                                                                 │
-│   ┌──────────────┐     HTTPS                 ┌─────────────────────┐   │
-│   │  API Gateway │ ────────────────────────►│  Lambda (Node 20)    │   │
-│   │  (HTTP API)  │     JWT Authorizer         │  Binder / Page / Slot │   │
-│   │              │◄────────────────────────  │  CRUD + Undo         │   │
-│   └──────┬───────┘                            └──────────┬──────────┘   │
-│          │                                                │               │
-│          │                                                │               │
-│          │                                                ▼               │
-│          │                                     ┌─────────────────────┐   │
-│          │                                     │  DynamoDB            │   │
-│          │                                     │  (On-Demand,         │   │
-│          │                                     │   single-table)      │   │
-│          │                                     └─────────────────────┘   │
-│          │                                                                 │
-│   ┌──────┴───────┐                                                       │
-│   │  Card search │  (Frontend only, debounced 300ms)                      │
+│          │                                                              │
+│          │  API calls (via Next.js proxy → add Bearer token from cookie)│
+│          ▼                                                              │
+│   ┌──────────────┐     HTTPS                 ┌─────────────────────┐    │
+│   │  API Gateway │──────────────────────────►│  Lambda (Node 20)   │    │
+│   │  (HTTP API)  │     JWT Authorizer        │ Binder / Page / Slot│    │
+│   │              │◄──────────────────────────│  CRUD + Undo        │    │
+│   └──────┬───────┘                           └──────────┬──────────┘    │
+│          │                                              │               │
+│          │                                              │               │
+│          │                                              ▼               │
+│          │                                     ┌─────────────────────┐  │
+│          │                                     │  DynamoDB           │  │
+│          │                                     │  (On-Demand,        │  │
+│          │                                     │   single-table)     │  │
+│          │                                     └─────────────────────┘  │
+│          │                                                              │
+│   ┌──────┴───────┐                                                      │
+│   │  Card search │  (Frontend only, debounced 300ms)                    │
 │   │  Pokémon TCG │ ───────────────────────────────► api.pokemontcg.io   │
-│   │  API v2      │  Optional API key via env                             │
-│   └──────────────┘                                                       │
-│                                                                          │
+│   │  API v2      │  Optional API key via env                            │
+│   └──────────────┘                                                      │
+│                                                                         │
 └─────────────────────────────────────────────────────────────────────────┘
 ```
 
