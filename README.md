@@ -1,187 +1,228 @@
-# tcg-inventory-platform
+# TCG Inventory Platform
 
-A **multi-user digital Pokémon TCG binder** built on a **FREE-TIER-SAFE** serverless architecture. No VPC, no NAT Gateway, no RDS, no ECS.
+A **binder-style trading card inventory website** built with **Next.js 14** and a **normalized relational schema** (SQLite in local dev, Postgres-ready schema for production).
+
+The repository still contains the original **PokéBinder (AWS Edition)** backend and infrastructure, but the primary experience is now a self-contained web app focused on inventory browsing.
+
+## Demo Features
+
+- **Landing page**
+  - Project overview and feature highlights.
+  - Screenshots section placeholder.
+  - Clear call-to-action to open the binder view and a placeholder link to Binder.
+- **Binder page (`/cards`)**
+  - Searchable, filterable grid of cards.
+  - Filters by **set**, **rarity**, and **type**.
+  - Sort dropdown for **market value**, **release date**, and **name**.
+  - Cards show artwork, set, rarity, type, market value, and owned quantity.
+- **Card detail page (`/cards/:id`)**
+  - Detailed view of a single card, including set, number, rarity, type, image, and market value.
+  - Aggregated **owned quantity** from `inventory`.
+  - List of inventory lots with quantity, condition, and acquired date.
+- **Health check**
+  - Simple JSON health endpoint at `/api/health`.
+
+The legacy AWS-backed PokéBinder UI (Cognito auth, DynamoDB, Lambda, SAM) is kept under `backend/` and `infra/` for reference but is not required to run the TCG Inventory Platform.
 
 ## Architecture (ASCII)
 
-```
-┌─────────────────────────────────────────────────────────────────────────┐
-│                           PokéBinder (AWS Edition)                      │
-├─────────────────────────────────────────────────────────────────────────┤
-│                                                                         │
-│   ┌──────────────┐     Sign in / Sign up      ┌─────────────────────┐   │
-│   │   Next.js    │ ──────────────────────────►│  AWS Cognito        │   │
-│   │   Frontend   │     JWT in httpOnly cookie │  (User Pool)        │   │
-│   │  (App Router)│◄───────────────────────────│                     │   │
-│   └──────┬───────┘                            └─────────────────────┘   │
-│          │                                                              │
-│          │  API calls (via Next.js proxy → add Bearer token from cookie)│
-│          ▼                                                              │
-│   ┌──────────────┐     HTTPS                 ┌─────────────────────┐    │
-│   │  API Gateway │──────────────────────────►│  Lambda (Node 20)   │    │
-│   │  (HTTP API)  │     JWT Authorizer        │ Binder / Page / Slot│    │
-│   │              │◄──────────────────────────│  CRUD + Undo        │    │
-│   └──────┬───────┘                           └──────────┬──────────┘    │
-│          │                                              │               │
-│          │                                              │               │
-│          │                                              ▼               │
-│          │                                     ┌─────────────────────┐  │
-│          │                                     │  DynamoDB           │  │
-│          │                                     │  (On-Demand,        │  │
-│          │                                     │   single-table)     │  │
-│          │                                     └─────────────────────┘  │
-│          │                                                              │
-│   ┌──────┴───────┐                                                      │
-│   │  Card search │  (Frontend only, debounced 300ms)                    │
-│   │  Pokémon TCG │ ───────────────────────────────► api.pokemontcg.io   │
-│   │  API v2      │  Optional API key via env                            │
-│   └──────────────┘                                                      │
-│                                                                         │
-└─────────────────────────────────────────────────────────────────────────┘
-```
-
-## Tech Stack
-
-| Layer        | Technology                          |
-|-------------|--------------------------------------|
-| Frontend    | Next.js 14 (App Router), TypeScript (strict), Tailwind, shadcn/ui, dnd-kit |
-| Auth        | AWS Cognito User Pool (email/password) |
-| API         | API Gateway HTTP API + Lambda (Node 20) |
-| Data        | DynamoDB (on-demand, single-table)   |
-| IaC         | AWS SAM (`infra/template.yaml`)      |
-| External    | [Pokémon TCG API v2](https://pokemontcg.io/) (optional key) |
-
-## Free-Tier Safety
-
-- **DynamoDB**: On-demand billing only  
-- **Lambda**: 128 MB, 5 s timeout, no VPC, no provisioned concurrency  
-- **CloudWatch Logs**: 7-day retention  
-- **No** VPC, NAT Gateway, RDS, ECS/Fargate, or OpenSearch  
-
-## Project Structure
+### TCG Inventory Platform (Next.js + SQLite)
 
 ```
-/frontend          Next.js app (auth, binder UI, card search, drag-and-drop, undo)
-/backend           Lambda handlers (TypeScript → dist/)
-/infra/template.yaml   SAM template (Cognito, API Gateway, Lambda, DynamoDB)
-README.md          This file
+┌──────────────────────────────────────────────────────────────┐
+│                  TCG Inventory Platform (Next.js)            │
+├──────────────────────────────────────────────────────────────┤
+│                                                              │
+│   Browser (React, App Router)                               │
+│   ┌──────────────────────────────────────────────────────┐   │
+│   │  /            Landing page                          │   │
+│   │  /cards       Binder-style card grid + filters      │   │
+│   │  /cards/:id   Card detail + owned quantity          │   │
+│   └──────────────────────────────────────────────────────┘   │
+│                      ▲                        ▲              │
+│                      │ fetch()                │ fetch()      │
+│                      │                        │              │
+│   ┌──────────────────┴────────────────────────┴───────────┐  │
+│   │           Next.js API Routes (Node runtime)          │  │
+│   │   /api/health                                        │  │
+│   │   /api/cards        – list + search/filter/sort      │  │
+│   │   /api/cards/:id    – single card + inventory lots   │  │
+│   │   /api/filters      – sets, rarities, types          │  │
+│   └──────────────────────────────────────────────────────┘  │
+│                      │                                      │
+│                      ▼                                      │
+│   ┌──────────────────────────────────────────────────────┐  │
+│   │   SQLite database (local dev)                       │  │
+│   │   tables: sets, cards, inventory                    │  │
+│   │   seed/reset via npm scripts                        │  │
+│   └──────────────────────────────────────────────────────┘  │
+│                                                              │
+└──────────────────────────────────────────────────────────────┘
 ```
 
-## Prerequisites
+### Legacy: PokéBinder (AWS Edition)
 
-- Node.js 20+
-- AWS CLI configured
-- [AWS SAM CLI](https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/install-sam-cli.html) installed
+The original AWS serverless architecture is preserved in the repo:
 
-## Deployment
-
-### 1. Build and deploy backend (SAM)
-
-```bash
-cd backend
-npm install
-npm run build
-cd ..
-sam build
-sam deploy --guided
+```
+/frontend   Next.js app (Cognito auth, original binder UI)
+/backend    Lambda handlers (TypeScript → dist/)
+/infra      AWS SAM template (Cognito, API Gateway, Lambda, DynamoDB)
 ```
 
-During `sam deploy --guided`, note:
+See `MIGRATION_PLAN.md` for how the project evolved from the AWS-centric design to the TCG Inventory Platform.
 
-- **Stack name**: e.g. `pokebinder-dev`
-- **AWS Region**: e.g. `us-east-1`
-- **Parameter Stage**: e.g. `dev`
-- Confirm defaults; allow SAM to create the IAM role.
+## Data Model Overview
 
-After deployment, note the outputs:
+The TCG Inventory Platform uses a normalized relational schema (SQLite locally, Postgres-compatible):
 
-- **ApiUrl** – API Gateway HTTP API base URL  
-- **UserPoolId** – Cognito User Pool ID  
-- **UserPoolClientId** – Cognito App Client ID  
+```text
+sets
+----
+id            INTEGER PRIMARY KEY AUTOINCREMENT
+name          TEXT NOT NULL UNIQUE
+release_date  TEXT NOT NULL  -- ISO-8601 date string
 
-### 2. Configure and run frontend
+cards
+-----
+id            INTEGER PRIMARY KEY AUTOINCREMENT
+name          TEXT NOT NULL
+set_id        INTEGER NOT NULL REFERENCES sets(id) ON DELETE CASCADE
+number        TEXT NOT NULL
+rarity        TEXT NOT NULL
+type          TEXT NOT NULL
+image_url     TEXT NOT NULL
+market_value  REAL NOT NULL CHECK (market_value >= 0)
+UNIQUE (set_id, number)
+
+inventory
+---------
+id            INTEGER PRIMARY KEY AUTOINCREMENT
+card_id       INTEGER NOT NULL REFERENCES cards(id) ON DELETE CASCADE
+quantity      INTEGER NOT NULL CHECK (quantity >= 0)
+condition     TEXT NOT NULL
+acquired_at   TEXT NOT NULL  -- ISO-8601 datetime string
+```
+
+At least **3 sets** and **50+ cards** are seeded, along with sample inventory lots that back the owned quantity shown in the UI.
+
+## Local Development
+
+### Prerequisites
+
+- **Node.js 20+**
+- **npm** (comes with Node)
+
+> The AWS CLI and SAM CLI are only needed if you want to work with the legacy PokéBinder (AWS Edition) backend. They are not required for the TCG Inventory Platform.
+
+### 1. Install dependencies
 
 ```bash
 cd frontend
-cp .env.example .env.local
+npm install
 ```
 
-Edit `.env.local` with your SAM outputs and region:
+### 2. Initialize and seed the database
 
-```env
-NEXT_PUBLIC_API_URL=https://xxxxxxxx.execute-api.us-east-1.amazonaws.com
-NEXT_PUBLIC_COGNITO_USER_POOL_ID=us-east-1_xxxxx
-NEXT_PUBLIC_COGNITO_CLIENT_ID=xxxxxxxxxxxxxxxxxxxxxxxxxx
-NEXT_PUBLIC_COGNITO_REGION=us-east-1
-# Optional: for higher rate limits on Pokémon TCG API
-NEXT_PUBLIC_POKEMON_TCG_API_KEY=your-key-if-you-have-one
-```
-
-Then:
+This will create a local SQLite file (`data/tcg_inventory.db`), apply the schema, and load seed data (sets, cards, inventory).
 
 ```bash
-npm install
+cd frontend
+npm run db:seed
+```
+
+You can safely re-run this command; it will skip seeding if data already exists. To completely reset the database, use:
+
+```bash
+cd frontend
+npm run db:reset
+```
+
+### 3. Start the dev server
+
+```bash
+cd frontend
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000). Sign up, sign in, create a binder, add pages, search cards, and drag-and-drop to fill the 3×3 grid.
+Then open `http://localhost:3000`:
 
-## AWS Budget alert (recommended)
+- `/` – Landing page for **TCG Inventory Platform**.
+- `/cards` – Binder-style card grid with search, filters, and sorting.
+- `/cards/:id` – Card detail page for a specific card.
+- `/api/health` – JSON health check (`{ "status": "ok" }`).
 
-To avoid unexpected charges and stay within free tier, create a budget and alert:
+The legacy PokéBinder AWS-based features (Cognito auth, `/binder` UI, Lambda-backed API) remain, but they require AWS credentials and SAM to run; see below.
 
-1. In AWS Console go to **Billing and Cost Management** → **Budgets** → **Create budget**.
-2. Choose **Cost budget** → **Next**.
-3. Set a **Budget name** (e.g. `pokebinder-free-tier`).
-4. **Period**: Monthly.
-5. **Budgeted amount**: e.g. **$5** (or $0 if you want to be notified of any spend).
-6. **Configure alerts**:
-   - Alert 1: **Actual** > **80%** of budgeted amount → email.
-   - Alert 2: **Actual** > **100%** of budgeted amount → email.
-   - (Optional) **Forecasted** > 100% → email.
-7. Add your email under **Alert recipients**.
-8. **Create budget**.
+## Deployment (Vercel Recommended)
 
-You can also scope the budget to only this stack’s resources using **Cost allocation tags** (tag resources in the SAM template and filter the budget by tag).
+The simplest deployment path is to deploy the `frontend` Next.js app to **Vercel**.
 
-## Features
+### Option A: SQLite (demo / small usage)
 
-- **Auth**: Cognito sign up / sign in; JWT stored in httpOnly cookie; middleware protects `/binder` routes; logout.
-- **Binders**: Create, list, get, delete; each binder has pages; each page has a 3×3 grid of slots (0–8).
-- **Slots**: Put a card in a slot (or clear); drag-and-drop to swap cards; optimistic UI with rollback on API failure.
-- **Undo**: Last slot mutation is kept in memory; revert via **Undo** and the `/slots/undo` API.
-- **Card search**: Frontend calls Pokémon TCG API directly; 300 ms debounce; search by name; modal with thumbnails and details.
+For a demo or small personal use:
 
-## API (Lambda)
+1. Ensure `data/tcg_inventory.db` is committed or generated in a build step.
+2. On Vercel:
+   - Import the `frontend` directory as a project.
+   - Use the default **Next.js** build settings.
+3. The API routes (`/api/cards`, `/api/cards/:id`, `/api/filters`, `/api/health`) will run on the Node.js runtime and access the SQLite file.
 
-All endpoints require a valid Cognito JWT (Bearer token). Ownership is enforced on every request.
+> Note: Vercel file systems are mostly read-only in serverless environments; for write-heavy or multi-user scenarios, use Option B.
 
-| Method | Path | Description |
-|--------|------|-------------|
-| POST   | `/binders` | Create binder (body: `{ name }`) |
-| GET    | `/binders` | List binders |
-| GET    | `/binders/{id}` | Get binder |
-| GET    | `/binders/{id}/pages` | List pages |
-| DELETE | `/binders/{id}` | Delete binder |
-| POST   | `/pages` | Create page (body: `{ binderId, pageIndex }`) |
-| DELETE | `/pages/{id}` | Delete page |
-| GET    | `/slots?pageId=...` | List slots for a page |
-| PUT    | `/slots` | Set slot (body: `{ pageId, position (0–8), card }`) |
-| POST   | `/slots/undo` | Undo last slot change (body: `{ pageId, position, previousCard }`) |
+### Option B: Postgres (recommended for production)
 
-## DynamoDB single-table design
+For production usage:
 
-**Table**: `PokebinderTable-<Stage>`
+1. Provision a Postgres instance (e.g. **Vercel Postgres**, **RDS**, or any managed Postgres).
+2. Create equivalent tables to the schema above in Postgres.
+3. Replace the `better-sqlite3` usage in `frontend/src/server/db.ts` with a Postgres client (e.g. `pg` or an ORM like Prisma/Drizzle).
+4. Configure connection strings via environment variables on Vercel.
 
-| Entity | PK | SK |
-|--------|----|----|
-| User   | `USER#<userId>` | `PROFILE` |
-| Binder | `USER#<userId>` | `BINDER#<binderId>` |
-| Page   | `BINDER#<binderId>` | `PAGE#<pageIndex>` |
-| Page lookup (by pageId) | `PAGE#<pageId>` | `METADATA` |
-| Slot   | `PAGE#<pageId>` | `SLOT#<position>` |
+The API route contracts and UI do not need to change; only the underlying implementation of the data access layer changes.
 
-No GSIs required for the current MVP.
+## Legacy PokéBinder (AWS Edition)
+
+If you want to run or extend the original AWS-based multi-user binder:
+
+1. **Build and deploy backend (SAM)**
+
+   ```bash
+   cd backend
+   npm install
+   npm run build
+   cd ..
+   sam build
+   sam deploy --guided
+   ```
+
+   During `sam deploy --guided`, capture:
+
+   - `ApiUrl` – API Gateway HTTP API base URL  
+   - `UserPoolId` – Cognito User Pool ID  
+   - `UserPoolClientId` – Cognito App Client ID  
+
+2. **Configure frontend for AWS backend**
+
+   ```bash
+   cd frontend
+   cp .env.example .env.local
+   ```
+
+   Update `.env.local` with your values. Then:
+
+   ```bash
+   cd frontend
+   npm run dev
+   ```
+
+   Visit `http://localhost:3000`, sign up / sign in, and explore the original `/binder` experience (Cognito-authenticated, DynamoDB-backed).
+
+## Health Check
+
+- **Endpoint**: `/api/health`  
+- **Response**: `{ "status": "ok" }`  
+- Used as a simple readiness check in local dev or deployment environments.
 
 ## License
 

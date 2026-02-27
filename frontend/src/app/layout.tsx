@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "PokéBinder (AWS Edition)",
-  description: "Multi-user digital Pokémon TCG binder",
+  title: "TCG Inventory Platform",
+  description: "Searchable trading card inventory with binder-style views.",
 };
 
 export default function RootLayout({
@@ -13,7 +13,9 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className="min-h-screen antialiased">{children}</body>
+      <body className="min-h-screen antialiased bg-background text-foreground">
+        {children}
+      </body>
     </html>
   );
 }
