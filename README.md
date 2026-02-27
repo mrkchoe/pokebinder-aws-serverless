@@ -1,4 +1,4 @@
-# PokéBinder (AWS Edition)
+# tcg-inventory-platform
 
 A **multi-user digital Pokémon TCG binder** built on a **FREE-TIER-SAFE** serverless architecture. No VPC, no NAT Gateway, no RDS, no ECS.
 
